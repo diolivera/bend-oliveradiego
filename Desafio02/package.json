@@ -1,0 +1,13 @@
+{ 
+  "type": "module",
+  "name": "desafio02",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ProductManager.js",
+  "scripts": {
+    "start": "node ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
