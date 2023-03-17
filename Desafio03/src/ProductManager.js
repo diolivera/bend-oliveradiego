@@ -1,92 +1,126 @@
 import fs from 'fs/promises'
+import { randomUUID } from 'crypto'
 
-class ProductManager {
+let loadSuccess = true
+
+class Product {
+    constructor(title, description, price, thumbnail, code, stock) {
+        const map = new Map([[title], [description], [price], [thumbnail], [code], [stock]])
+        if (map.has("") || map.has(0)) {
+            throw ("Todos los campos son obligatorios, creación de producto fallida");
+        } else {
+            this.title = title
+            this.description = description
+            this.price = price
+            this.thumbnail = thumbnail
+            this.code = code
+            this.stock = stock
+        }
+    }
+}
+
+export class ProductManager {
+
+    #path
+    #products
+
     constructor(path) {
-        
-        this.id = 0;
-        this.path = path
-        this.products = [];
+        this.#path = path
+        this.#products = []
     }
 
-    async loadProducts(){
-        const json = await fs.readFile(this.path, 'utf-8');
-        
-        if (!json) {
-            await this.saveProducts();
+    async #cargar() {
+        try {
+            if (loadSuccess) {
+                const file = await fs.readFile(this.#path, 'utf-8')
+                const prod = await JSON.parse(file)
+                prod.forEach(element => {
+                    this.#products.push(element)
+                })
+                loadSuccess = false
+                return
+            } else return
+        } catch (error) {
+            throw ('No se pudo cargar el archivo')
+        }
+    }
+
+    async getProducts() {
+        await this.#cargar()
+        return this.#products
+    }
+
+    async getProductsLimited(limit) {
+        await this.#cargar()
+        const prodsLimited = []
+
+        for (let i = 0; i < limit; i++) {
+            if (i < this.#products.length) prodsLimited.push(this.#products[i])
+        }
+        return prodsLimited
+    }
+
+    async addProduct(product) {
+        await this.#cargar()
+        let json, id = null;
+        if (Object.entries(product).length === 0) {
+            throw ('No se añadio el producto, verificar propiedades\n\n');
         } else {
-            const products = JSON.parse(json);
-            if (products.length > 0){
-                this.products = products;
-                this.id = this.products[this.products.length - 1].id;
-            }
-        }    
-    }
-
-    
-    async saveProducts(){
-        const json = JSON.stringify(this.products, null, 2)
-        await fs.writeFile(this.path, json)
-    }
-
-    async addProduct(title, description, price, thumbail, code, stock){
-        
-        await this.loadProducts();
-        
-        if (title && description && price && thumbail && code && stock){
-            const existCode = this.products.some(product => product.code === code)
-            if (existCode){
-                throw new Error("Code ya existe");
+            const codeRepeated = this.#products.some((prod) => prod.code === product.code)
+            if (codeRepeated) {
+                throw ('El codigo ' + product.code + ' esta repetido, no se añadio el producto\n\n')
             } else {
-                
-                this.products.push({ id: ++this.id, title, description, price, thumbail, code, stock});
-                await this.saveProducts(); 
+                id = randomUUID()
+                product.id = id
+                this.#products.push(product)
+                json = JSON.stringify(this.#products, null, 4)
+                await fs.writeFile(this.#path, json)
             }
-        } else {
-            throw new Error("Faltan campos");
-        }  
-    }
-
-    async getProducts(){
-        await this.loadProducts();
-        console.log(this.products)
-    }
-
-    async getProductById(id){
-        await this.loadProducts();
-        const indexID = this.products.find(product => product.id == id);
-        if (indexID){
-            console.log("El producto con el id es: ", indexID);
-        } else {
-            throw new Error("Not Found")
         }
     }
 
-    async updateProduct(id, data){
-        await this.loadProducts();
-        const indexID = this.products.findIndex(product => product.id === id);
-        if (indexID !== -1){
-            this.products[indexID] = {
-                ...this.products[indexID],
-                ...data
+    async getProductById(id) {
+        await this.#cargar()
+        try {
+            const product = await this.#products.find((prod)=>prod.id === parseInt(id))
+            return product
+        } catch (error) {
+            return null
+        }
+
+    }
+
+    async updateProduct(id, campo, data) {
+        await this.#cargar()
+        let json, i = null;
+        const modificar = (i, campo, data) => {
+            for (const property in this.#products[i]) {
+                if (property === campo) {
+                    this.#products[i][property] = data
+                }
             }
-            await this.saveProducts();
-        } else {
-            throw new Error("Not Found")
         }
+        const idFinded = this.#products.some((prod) => prod.id === id)
+        if (idFinded) {
+            i = this.#products.findIndex((prod) => prod.id === id)
+            modificar(i, campo, data)
+            json = JSON.stringify(this.#products, null, 4)
+            await fs.writeFile(this.#path, json)
+        } else throw ('--- Not found ---\n\n')
+
     }
 
-    async deleteProduct(id){
-        await this.loadProducts();
-        const existID = this.products.findIndex(product => product.id === id);
-        if (existID !== -1){
-            this.products.splice(existID, 1)
-            await this.saveProducts()
-        } else {
-            throw new Error("Not Found")
-        }
+    async deleteProduct(id) {
+        await this.#cargar()
+        let json, i = null
+        const idFinded = this.#products.some((prod) => prod.id === id)
+        if (idFinded) {
+            i = this.#products.findIndex((prod) => prod.id === id),
+                this.#products.splice(i, 1)
+            json = JSON.stringify(this.#products, null, 4)
+            await fs.writeFile(this.#path, json)
+            return
+        } else throw ('--Not found--')
     }
-} 
 
-const products = new ProductManager("./products.txt");
-
-export default ProductManager;
+}

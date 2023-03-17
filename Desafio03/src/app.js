@@ -1,44 +1,26 @@
 import express from 'express'
-import fs from 'fs/promises'
-import ProductManager from './ProductManager.js'
+import { ProductManager } from './ProductManager.js'
 
 const app = express()
+const manager = new ProductManager('./database/products.json')
 
-async function parseFile() {
-    const products = await fs.readFile( './src/products.json', 'utf-8')
-    return JSON.parse(products);
-}
-
-app.get("/products", async (req, res) => {
-    
-    const queryLimit = req.query.limit
-
-    if (!isNaN(queryLimit) && queryLimit >= 0){
-        const productsJSON = parseFile();
-        let productsLimit = [];
-       
-        for (let i = 0 ; i<queryLimit ; i++ ){
-            productsLimit[i] = productsJSON[i];
-        }
-        res.json(productsLimit);
-    } else {
-        const productsJSON = await parseFile();
-        res.json(productsJSON);
-    }
+app.get('/products', async (req, res) => {
+  const limite = parseInt(req.query.limit)
+  let products = null
+  if (Number.isNaN(limite)) {
+    products = await manager.getProducts()
+    res.json(products)
+  } else {
+    products = await manager.getProductsLimited(limite)
+    res.json(products)
+  }
 })
 
-app.get("/products/:id", async (req, res) => {
-    const id = req.params.id;
-    const productsJSON = await parseFile();
-    if (!isNaN(id) && id >= 0){
-        if(id > productsJSON.length){
-            res.json({error: "El producto no existe"});
-        } else {
-            res.json(productsJSON[id-1]);
-        }
-    } else {
-        res.json({error: "El id debe ser un numero entero"})
-    }
+app.get('/products/:pid', async (req, res) => {
+  const product = await manager.getProductById(req.params.pid)
+  product ? 
+    res.json(product)
+    : res.status(400).json({"message":"No se encontro el producto con el id "+req.params.pid})
 })
 
-app.listen(8080)
+const server = app.listen(8080)
